@@ -20,24 +20,15 @@ if (!is_dir(DATA_DIR)) {
     mkdir(DATA_DIR, 0777, true);
 }
 
-function init_json_files() {
-    $default = [];
-    $files = [
-        USERS_FILE => RECOVERY_USERS,
-        KEYS_FILE => RECOVERY_KEYS,
-        INVITES_FILE => RECOVERY_INVITES,
-        AD_CONFIG_FILE => RECOVERY_AD,
-        SCRIPTS_FILE => RECOVERY_SCRIPTS,
-        STORE_FILE => RECOVERY_STORE
-    ];
-    foreach ($files as $file => $recovery) {
-        if (!file_exists($file)) {
-            file_put_contents($file, json_encode($default, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-            file_put_contents($recovery, json_encode($default, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-        }
+// 초기 Invite Code 자동 생성 (invite1)
+function init_invite() {
+    $invites = load_json(INVITES_FILE, RECOVERY_INVITES);
+    if (empty($invites)) {
+        $invites[] = ['code' => 'invite1', 'used' => false, 'created' => time(), 'generated_by' => 0];
+        save_json(INVITES_FILE, $invites, RECOVERY_INVITES);
     }
 }
-init_json_files();
+init_invite();
 
 function load_json($file, $recovery) {
     if (file_exists($file) && filesize($file) > 5) {
@@ -57,15 +48,6 @@ function save_json($file, $data, $recovery) {
 
 function is_logged_in() {
     return isset($_SESSION['user_id']);
-}
-
-function generate_invite_code() {
-    $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    $code = '';
-    for ($i = 0; $i < 10; $i++) {
-        $code .= $chars[random_int(0, strlen($chars) - 1)];
-    }
-    return $code;
 }
 
 function generate_key() {
@@ -105,7 +87,7 @@ if (isset($_GET['ad_complete']) && is_logged_in()) {
         $keys[] = ['key' => $newkey, 'expiration' => time() + 86400, 'created' => time(), 'owner' => $_SESSION['user_id']];
         save_json(KEYS_FILE, $keys, RECOVERY_KEYS);
         $msg = "✅ 광고 시청 완료!<br><b>키: " . htmlspecialchars($newkey) . "</b>";
-        unset($_SESSION['ad_step'], $_SESSION['ad_start_time']);
+        unset($_SESSION['ad_start_time']);
     }
 }
 
@@ -135,7 +117,7 @@ if (isset($_POST['register'])) {
     $invites = load_json(INVITES_FILE, RECOVERY_INVITES);
     $valid = false;
     foreach ($invites as &$inv) {
-        if ($inv['code'] === $invite_code && !$inv['used']) {
+        if (strtolower($inv['code']) === strtolower($invite_code) && !$inv['used']) {
             $valid = true;
             $inv['used'] = true;
             save_json(INVITES_FILE, $invites, RECOVERY_INVITES);
@@ -143,7 +125,7 @@ if (isset($_POST['register'])) {
         }
     }
     if (!$valid) {
-        $msg = "❌ Invite Code가 유효하지 않습니다.";
+        $msg = "❌ Invite Code가 유효하지 않습니다. (invite1을 사용하세요)";
         goto end;
     }
 
@@ -278,7 +260,7 @@ end:
                         <input type="text" name="invite_code" class="form-control mb-3" value="invite1" readonly style="text-transform:lowercase;">
                         <button type="submit" name="register" class="btn btn-success w-100">회원가입</button>
                     </form>
-                    <small class="text-muted">Invite Code는 자동으로 입력되어 있습니다. (invite1)</small>
+                    <small class="text-muted">Invite Code는 자동으로 입력되어 있습니다.</small>
                 </div>
             </div>
         </div>
