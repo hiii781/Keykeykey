@@ -4,14 +4,12 @@ session_start();
 define('DATA_DIR', __DIR__ . '/data/');
 define('USERS_FILE', DATA_DIR . 'users.json');
 define('KEYS_FILE', DATA_DIR . 'keys.json');
-define('INVITES_FILE', DATA_DIR . 'invites.json');
 define('AD_CONFIG_FILE', DATA_DIR . 'ad_config.json');
 define('SCRIPTS_FILE', DATA_DIR . 'scripts.json');
 define('STORE_FILE', DATA_DIR . 'store.json');
 
 define('RECOVERY_USERS', DATA_DIR . 'users_recovery.json');
 define('RECOVERY_KEYS', DATA_DIR . 'keys_recovery.json');
-define('RECOVERY_INVITES', DATA_DIR . 'invites_recovery.json');
 define('RECOVERY_AD', DATA_DIR . 'ad_config_recovery.json');
 define('RECOVERY_SCRIPTS', DATA_DIR . 'scripts_recovery.json');
 define('RECOVERY_STORE', DATA_DIR . 'store_recovery.json');
@@ -20,15 +18,23 @@ if (!is_dir(DATA_DIR)) {
     mkdir(DATA_DIR, 0777, true);
 }
 
-// 초기 Invite Code 자동 생성 (invite1)
-function init_invite() {
-    $invites = load_json(INVITES_FILE, RECOVERY_INVITES);
-    if (empty($invites)) {
-        $invites[] = ['code' => 'invite1', 'used' => false, 'created' => time(), 'generated_by' => 0];
-        save_json(INVITES_FILE, $invites, RECOVERY_INVITES);
+function init_json_files() {
+    $default = [];
+    $files = [
+        USERS_FILE => RECOVERY_USERS,
+        KEYS_FILE => RECOVERY_KEYS,
+        AD_CONFIG_FILE => RECOVERY_AD,
+        SCRIPTS_FILE => RECOVERY_SCRIPTS,
+        STORE_FILE => RECOVERY_STORE
+    ];
+    foreach ($files as $file => $recovery) {
+        if (!file_exists($file)) {
+            file_put_contents($file, json_encode($default, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+            file_put_contents($recovery, json_encode($default, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        }
     }
 }
-init_invite();
+init_json_files();
 
 function load_json($file, $recovery) {
     if (file_exists($file) && filesize($file) > 5) {
@@ -112,22 +118,6 @@ if (isset($_POST['save_ad_link']) && is_logged_in()) {
 if (isset($_POST['register'])) {
     $username = trim($_POST['username']);
     $password = $_POST['password'];
-    $invite_code = trim($_POST['invite_code'] ?? 'invite1');
-
-    $invites = load_json(INVITES_FILE, RECOVERY_INVITES);
-    $valid = false;
-    foreach ($invites as &$inv) {
-        if (strtolower($inv['code']) === strtolower($invite_code) && !$inv['used']) {
-            $valid = true;
-            $inv['used'] = true;
-            save_json(INVITES_FILE, $invites, RECOVERY_INVITES);
-            break;
-        }
-    }
-    if (!$valid) {
-        $msg = "❌ Invite Code가 유효하지 않습니다. (invite1을 사용하세요)";
-        goto end;
-    }
 
     $users = load_json(USERS_FILE, RECOVERY_USERS);
     foreach ($users as $u) {
@@ -153,14 +143,6 @@ if (isset($_POST['login'])) {
         }
     }
     $msg = "❌ 아이디 또는 비밀번호가 틀립니다.";
-}
-
-if (isset($_POST['generate_invite']) && is_logged_in()) {
-    $code = generate_invite_code();
-    $invites = load_json(INVITES_FILE, RECOVERY_INVITES);
-    $invites[] = ['code' => $code, 'used' => false, 'created' => time(), 'generated_by' => $_SESSION['user_id']];
-    save_json(INVITES_FILE, $invites, RECOVERY_INVITES);
-    $msg = "✅ Invite Code 생성 완료: <b>$code</b>";
 }
 
 if (isset($_POST['save_script']) && is_logged_in()) {
@@ -257,10 +239,8 @@ end:
                     <form method="post">
                         <input type="text" name="username" class="form-control mb-2" placeholder="아이디" required>
                         <input type="password" name="password" class="form-control mb-2" placeholder="비밀번호" required>
-                        <input type="text" name="invite_code" class="form-control mb-3" value="invite1" readonly style="text-transform:lowercase;">
                         <button type="submit" name="register" class="btn btn-success w-100">회원가입</button>
                     </form>
-                    <small class="text-muted">Invite Code는 자동으로 입력되어 있습니다.</small>
                 </div>
             </div>
         </div>
